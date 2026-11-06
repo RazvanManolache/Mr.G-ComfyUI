@@ -8,14 +8,18 @@ name: Playwright Browser Tests CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v7.0.1
+      with:
+        persist-credentials: false
+        sparse-checkout: .github/scripts
     - name: Checkout ComfyUI
       uses: actions/checkout@v4
       with:
@@ -27,10 +31,10 @@ jobs:
         repository: "huchenlei/ComfyUI_frontend"
         path: "ComfyUI_frontend"
         ref: "fcc54d803e5b6a9b08a462a1d94899318c96dcbb"
-    - uses: actions/setup-node@v3
+    - uses: actions/setup-node@v6
       with:
         node-version: lts/*
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v7
       with:
         python-version: '3.10'
     - name: Install requirements
@@ -62,15 +66,27 @@ jobs:
           exit 1
         fi
       working-directory: ComfyUI
-    - uses: actions/upload-artifact@v4
-      if: always()
+    - uses: actions/github-script@v9
+      if: (always()) && success() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event_name != 'pull_request'
       with:
-        name: playwright-report
-        path: ComfyUI_frontend/playwright-report/
-        retention-days: 30
-    - uses: actions/upload-artifact@v4
-      if: always()
+        script: |
+          const publish = require('./.github/scripts/publish-build.cjs');
+          await publish({github, context, core, glob, exec});
+      env:
+        BUILD_NAME: playwright-report
+        BUILD_PATHS: ComfyUI_frontend/playwright-report/
+        BUILD_HIDDEN: 'false'
+        BUILD_MISSING: warn
+    - uses: actions/github-script@v9
+      if: (always()) && success() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event_name != 'pull_request'
       with:
-        name: console-output
-        path: ComfyUI/console_output.log
-        retention-days: 30
+        script: |
+          const publish = require('./.github/scripts/publish-build.cjs');
+          await publish({github, context, core, glob, exec});
+      env:
+        BUILD_NAME: console-output
+        BUILD_PATHS: ComfyUI/console_output.log
+        BUILD_HIDDEN: 'false'
+        BUILD_MISSING: warn
+    permissions:
+      contents: write
